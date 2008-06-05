@@ -7,6 +7,7 @@
 -import(lists, [filter/2]).
 -import(timer, [sleep/1]).
 -import(io, [format/2]).
+-import(io_lib).
 
 -define(MAXPROC, 2).
 
@@ -21,16 +22,44 @@ cspawn(F, Args, P) ->
       cspawn(F, Args, P)
   end.
 
+collectOutput(Port, Output) ->
+  receive
+    {Port, {data, Data}} ->
+      io:format("receive data: ~p~n", [Data]),
+      collectOutput(Port, [Output | Data]);
+    {Port, {exit_status, _}} ->
+      %% return collected output
+      Output;
+    {Port, Msg} ->
+      io:format("receive unknown message from port: ~p~n", [Msg]),
+      exit({unknown_message, Msg})
+  end.
+
+gitpull(Pid, Path) ->
+  io:format("i'm going to git pull ~p~n", [Path]),
+  Git = open_port({spawn, "git pull"}, [stream, {cd, Path}, binary, eof, exit_status]),
+
+  Result = collectOutput(Git, []),
+
+  io:format("sending result to ~p~n", [Pid]),
+  Pid ! {ok, Path, Result}.
+
 loop([], Results) ->
+  io:format("zz"),
   Results;
 
 loop([D|T], Results) ->
+  %% io:format("loop [~p|~p], ~p~n", [D, T, Results]),
   %% spawn a new process
-  cspawn(fun(X) -> io:format("~p~n",X) end, [D], fun() -> true end),
+  Pid = self(),
+  spawn_link(fun() -> gitpull(Pid, D) end),
   receive
-    {ok, Result} ->
-      Res = [Result | Res],
-      loop(N-1, Res)
+    {ok, Path, Result} ->
+      io:format("~p: ~s~n", [Path, Result]),
+      loop(T, [Results | Result]);
+    Other ->
+      io:format("I got message ~p~n", [Other]),
+      loop(T, Results)
   end.
 
 main() ->
@@ -41,4 +70,5 @@ main() ->
   GitDirs = lists:filter(GitFilter, filelib:wildcard("*")),
   io:format("git dirs: ~p~n", [GitDirs]),
   %%
-  loop(GitDirs, []).
+  loop(GitDirs, []),
+  init:stop().
