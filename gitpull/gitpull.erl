@@ -44,23 +44,21 @@ gitpull(Pid, Path) ->
   io:format("sending result to ~p~n", [Pid]),
   Pid ! {ok, Path, Result}.
 
-loop([], Results) ->
-  io:format("zz"),
+wait_for_output(0, Results) ->
   Results;
 
-loop([D|T], Results) ->
+wait_for_output(N, Results) ->
+  receive
+    {ok, Path, Result} ->
+      wait_for_output(N-1, [Result | Results])
+  end.
+
+loop(Dirs) ->
   %% io:format("loop [~p|~p], ~p~n", [D, T, Results]),
   %% spawn a new process
   Pid = self(),
-  spawn_link(fun() -> gitpull(Pid, D) end),
-  receive
-    {ok, Path, Result} ->
-      io:format("~p: ~s~n", [Path, Result]),
-      loop(T, [Results | Result]);
-    Other ->
-      io:format("I got message ~p~n", [Other]),
-      loop(T, Results)
-  end.
+  lists:foreach(fun(D) -> spawn_link(fun() -> gitpull(Pid, D) end) end, Dirs),
+  wait_for_output(length(Dirs), []).
 
 main() ->
   %%
@@ -70,5 +68,5 @@ main() ->
   GitDirs = lists:filter(GitFilter, filelib:wildcard("*")),
   io:format("git dirs: ~p~n", [GitDirs]),
   %%
-  loop(GitDirs, []),
+  loop(GitDirs),
   init:stop().
