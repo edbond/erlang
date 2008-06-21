@@ -9,19 +9,6 @@
 -import(io, [format/2]).
 -import(io_lib).
 
--define(MAXPROC, 2).
-
-%% conditional spawn
-%% spawn if have freeslots
-cspawn(F, Args, P) ->
-  case P of
-    true -> {ok, spawn(self(), F, Args)};
-    false ->
-      io:format("sleep...~n"),
-      timer:sleep(2000),
-      cspawn(F, Args, P)
-  end.
-
 collectOutput(Port, Output) ->
   receive
     {Port, {data, Data}} ->
