@@ -12,7 +12,7 @@
 collectOutput(Port, Output) ->
   receive
     {Port, {data, Data}} ->
-      io:format("receive data: ~p~n", [Data]),
+      io:format("receive data: ~s~n", [Data]),
       collectOutput(Port, [Output | Data]);
     {Port, {exit_status, _}} ->
       %% return collected output
@@ -36,7 +36,7 @@ wait_for_output(0, Results) ->
 
 wait_for_output(N, Results) ->
   receive
-    {ok, Path, Result} ->
+    {ok, _, Result} ->
       wait_for_output(N-1, [Result | Results])
   end.
 
