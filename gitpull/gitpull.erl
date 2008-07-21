@@ -11,21 +11,10 @@
 
 -define(MAXPROC, 2).
 
-%% conditional spawn
-%% spawn if have freeslots
-cspawn(F, Args, P) ->
-  case P of
-    true -> {ok, spawn(self(), F, Args)};
-    false ->
-      io:format("sleep...~n"),
-      timer:sleep(2000),
-      cspawn(F, Args, P)
-  end.
-
 collectOutput(Port, Output) ->
   receive
     {Port, {data, Data}} ->
-      io:format("receive data: ~p~n", [Data]),
+      io:format("receive data: ~s~n", [Data]),
       collectOutput(Port, [Output | Data]);
     {Port, {exit_status, _}} ->
       %% return collected output
@@ -44,9 +33,9 @@ gitpull(Pid, Path) ->
   io:format("sending result to ~p~n", [Pid]),
   Pid ! {ok, Path, Result}.
 
+
 wait_for_output(0, Results) ->
   Results;
-
 wait_for_output(N, Results) ->
   receive
     {ok, Path, Result} ->
