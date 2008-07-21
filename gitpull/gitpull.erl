@@ -9,8 +9,6 @@
 -import(io, [format/2]).
 -import(io_lib).
 
--define(MAXPROC, 2).
-
 collectOutput(Port, Output) ->
   receive
     {Port, {data, Data}} ->
@@ -38,7 +36,7 @@ wait_for_output(0, Results) ->
   Results;
 wait_for_output(N, Results) ->
   receive
-    {ok, Path, Result} ->
+    {ok, _, Result} ->
       wait_for_output(N-1, [Result | Results])
   end.
 
