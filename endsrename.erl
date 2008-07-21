@@ -2,6 +2,7 @@
 %% -module(endsrename).
 -author('Eduard Bondarenko <edbond@gmail.com>').
 
+-mode(compile).
 -compile( [ native, { hipe, o3 } ] ).
 -compile( [ inline, { inline_size, 100 } ] ).
 -export([main/1]).
