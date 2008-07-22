@@ -1,5 +1,5 @@
-#!/usr/bin/env escript
-%% -module(endsrename).
+%#!/usr/bin/env escript
+-module(endsrename).
 -author('Eduard Bondarenko <edbond@gmail.com>').
 
 -mode(compile).
