@@ -1,2 +1,2 @@
-**/*.beam
-**/erl_crash.dump
+*.beam
+erl_crash.dump
