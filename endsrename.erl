@@ -25,7 +25,7 @@ rename_save(Romname, CleanRomname) ->
   Savename = lists:filter(fun(S) -> Romname == S end, SaveFilenames),
   case length(Savename) of
     0 -> Cmd = void;
-    _ -> Cmd = "mv '../SAVE/"++hd(Savename)++"' '../SAVE/"++CleanRomname++".sav'"
+    _ -> Cmd = "mv '../SAVE/"++hd(Savename)++".sav' '../SAVE/"++CleanRomname++".sav'"
   end,
   Cmd.
 
