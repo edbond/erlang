@@ -1,5 +1,8 @@
 -module(hello_web).
 
+%-compile( [ native, { hipe, o3 } ] ).
+%-compile( [ inline, { inline_size, 100 } ] ).
+
 -export([start/1, stop/0]).
 
 -define(CONTENT, <<"<html><head><title>Hello, Web</title></head><body>Hello, Web!</body></html>">>).
