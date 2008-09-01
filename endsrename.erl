@@ -50,10 +50,30 @@ rename_rom(Filename) ->
 output(void) -> true;
 output(Cmd) -> io:format("~s~n", [Cmd]).
 
+%% this is for parallel version
+getoutput(R) ->
+  leader ! {output, rename_rom(R)}.
+
+wait_loop(0) ->
+  ok;
+wait_loop(N) ->
+  receive
+    {output, Output} ->
+      %% output
+      lists:map(fun(C) -> output(C) end, Output),
+      wait_loop(N-1)
+  end.
+
 main(_) ->
   Roms = filelib:wildcard("*.nds"),
 
-  Cmds = lists:flatmap(fun(X) -> rename_rom(X) end, Roms),
+  %% parallel version
+  register(leader, self()),
+  lists:foreach(fun(R) -> spawn(fun() -> getoutput(R) end) end, Roms),
+  wait_loop(length(Roms)),
+
+  %% flat version
+  %Cmds = lists:flatmap(fun(X) -> rename_rom(X) end, Roms),
   %% output
-  lists:map(fun(C) -> output(C) end, Cmds),
+  %lists:map(fun(C) -> output(C) end, Cmds),
   halt().
