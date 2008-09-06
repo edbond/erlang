@@ -25,18 +25,6 @@ reverse_test_() -> [
   }
 ).
 
-accept(ServerPid, State) ->
-  case gen_tcp:accept(State#tp_state.listen, infinity) of
-    {ok, Socket} -> 
-      io:format("going into loop ~p~n", [Socket]),
-      loop(Socket),
-      %spawn(fun() -> loop(Socket) end),
-      {reply, ok, State#tp_state{socket=Socket} };
-    {error, timeout} ->
-      io:format("restart accept~n"),
-      accept(ServerPid, State)
-  end.
-
 % gen_server
 init(Args) ->
   io:format("init: ~p~n", [Args]),
@@ -47,20 +35,19 @@ init(Args) ->
   {ok, #tp_state{listen=Sock}}.
 
 
+handle_call({accept, Pid}, From, State) ->
+  spawn(fun() -> accept_loop(Pid, State) end),
+  {reply, From, State};
 handle_call(Request, From, State) ->
   io:format("handle_call: ~p~n", [Request]),
-  case Request of
-    {accept, Pid} ->
-      io:format("accept call from ~p ~p ~n", [?LINE, Pid]),
-      accept(Pid, State),
-      {reply, From, State};
-    Other ->
-      io:format("unknown request call ~p~n", [Other])
-  end.
+  {reply, From, State}.
 
+handle_cast({accept, Pid, Socket}, State) ->
+  loop(Socket),
+  {noreply, State};
 handle_cast(Request, State) ->
   io:format("handle_cast: ~p~n", [Request]),
-  {reply, Request, State}.
+  {noreply, State}.
 
 handle_info(Info, State) ->
   io:format("handle_info: ~p~n", [Info]),
@@ -87,15 +74,26 @@ loop(Socket) ->
       io:format("unknown recv result ~p~n", [Other])
   end.
 
-accept_loop(Pid) ->
-  gen_server:call(Pid, {accept, Pid}),
-  %accept(Pid, {some_state}),
-  accept_loop(Pid).
+accept(ServerPid, State) ->
+  case gen_tcp:accept(State#tp_state.listen, infinity) of
+    {ok, Socket} -> 
+      io:format("going into loop ~p~n", [Socket]),
+      gen_server:cast(ServerPid, {accept, ServerPid, Socket}),
+      {reply, State#tp_state{socket=Socket} };
+    {error, timeout} ->
+      io:format("restart accept~n"),
+      accept(ServerPid, State)
+  end.
+
+accept_loop(Pid, State) ->
+  %gen_server:cast(Pid, {accept, Pid}),
+  accept(Pid, State),
+  accept_loop(Pid, State).
 
 main() ->
   {ok, Pid} = gen_server:start_link(?MODULE, [], []),
   io:format("started gen_server pid: ~p~n", [Pid]),
-  accept_loop(Pid).
+  gen_server:call(Pid, {accept, Pid}).
 
   %inets:start(),
   %{ok, {{Version, 200, ReasonPhrase}, Headers, Body}} = http:request("http://www.erlang.org"),
