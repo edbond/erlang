@@ -7,14 +7,14 @@
 -define(PORT, 3456).
 -define(MAX_CONNECTS, 3000).
 
--include_lib("eunit/include/eunit.hrl").
-
 -compile(export_all).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
-reverse_test_() -> [
-    ?_assert([3,2,1]==lists:reverse([1,2,3]))
-  ].
+% HiPE
+-mode(compile).
+-compile( [ native, { hipe, o3 } ] ).
+-compile( [ inline, { inline_size, 100 } ] ).
+
 
 % server state ?
 -record(tp_state,
@@ -42,7 +42,7 @@ handle_call(Request, From, State) ->
   io:format("handle_call: ~p~n", [Request]),
   {reply, From, State}.
 
-handle_cast({accept, Pid, Socket}, State) ->
+handle_cast({accept, _Pid, Socket}, State) ->
   loop(Socket),
   {noreply, State};
 handle_cast(Request, State) ->
@@ -53,19 +53,24 @@ handle_info(Info, State) ->
   io:format("handle_info: ~p~n", [Info]),
   {reply, Info, State}.
 
-terminate(Reason, State) ->
+terminate(Reason, _State) ->
   io:format("terminate: ~p~n", [Reason]),
-  ko.
+  ok.
 
-code_change(OldVsn, State, Extra) ->
+code_change(OldVsn, _State, _Extra) ->
   io:format("code_change: ~p~n", [OldVsn]),
   updated.
 
+parse_request(_Data, _Pid) ->
+  ok.
+  
 loop(Socket) ->
   io:format("loop ~n",[]),
   case gen_tcp:recv(Socket,0) of
     {ok, Data} ->
       io:format("read data ~p~n", [Data]),
+      % parse data
+      parse_request( Data, self() ),
       gen_tcp:send(Socket, Data),
       loop(Socket);
     {error, Reason} ->
