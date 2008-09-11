@@ -35,15 +35,25 @@ init(Args) ->
   {ok, #tp_state{listen=Sock}}.
 
 
-handle_call({accept, Pid}, From, State) ->
-  spawn(fun() -> accept_loop(Pid, State) end),
-  {reply, From, State};
 handle_call(Request, From, State) ->
   io:format("handle_call: ~p~n", [Request]),
   {reply, From, State}.
 
-handle_cast({accept, _Pid, Socket}, State) ->
-  loop(Socket),
+handle_cast({accept}, State) ->
+  case gen_tcp:accept(State#tp_state.listen, infinity) of
+    {ok, Socket} -> 
+      io:format("going into loop ~p~n", [Socket]),
+      gen_server:cast(self(), {loop, Socket});
+      %{noreply, State#tp_state{socket=Socket} };
+    {error, timeout} ->
+      io:format("restart accept~n"),
+      %% restart
+      gen_server:cast(self(), {accept})
+  end,
+  gen_server:cast(self(), {accept}),
+  {noreply, State};
+handle_cast({loop, Socket}, State) ->
+  spawn(fun() -> loop(Socket) end),
   {noreply, State};
 handle_cast(Request, State) ->
   io:format("handle_cast: ~p~n", [Request]),
@@ -64,6 +74,7 @@ code_change(OldVsn, _State, _Extra) ->
 parse_request(_Data, _Pid) ->
   ok.
   
+%% client <-> me loop
 loop(Socket) ->
   io:format("loop ~n",[]),
   case gen_tcp:recv(Socket,0) of
@@ -79,26 +90,10 @@ loop(Socket) ->
       io:format("unknown recv result ~p~n", [Other])
   end.
 
-accept(ServerPid, State) ->
-  case gen_tcp:accept(State#tp_state.listen, infinity) of
-    {ok, Socket} -> 
-      io:format("going into loop ~p~n", [Socket]),
-      gen_server:cast(ServerPid, {accept, ServerPid, Socket}),
-      {reply, State#tp_state{socket=Socket} };
-    {error, timeout} ->
-      io:format("restart accept~n"),
-      accept(ServerPid, State)
-  end.
-
-accept_loop(Pid, State) ->
-  %gen_server:cast(Pid, {accept, Pid}),
-  accept(Pid, State),
-  accept_loop(Pid, State).
-
 main() ->
   {ok, Pid} = gen_server:start_link(?MODULE, [], []),
   io:format("started gen_server pid: ~p~n", [Pid]),
-  gen_server:call(Pid, {accept, Pid}).
+  gen_server:cast(Pid, {accept}).
 
   %inets:start(),
   %{ok, {{Version, 200, ReasonPhrase}, Headers, Body}} = http:request("http://www.erlang.org"),
