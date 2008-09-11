@@ -71,7 +71,28 @@ code_change(OldVsn, _State, _Extra) ->
   io:format("code_change: ~p~n", [OldVsn]),
   updated.
 
-parse_request(_Data, _Pid) ->
+
+-record(request,
+  {
+    method, % port connection accepted on
+    url, % socket I'm listen on
+    headers % socket I talk to
+  }
+).
+
+parse_headers(Request, R) ->
+  io:format("request: ~p result: ~p~n", [Request, R]),
+  [Line, Rest] = lists:split(fun() -> "", Request
+  R.
+
+parse_headers(Request) ->
+  parse_headers(Request, #request{}).
+
+parse_request(Data, _Pid) ->
+  % <<"GET http://www.google.com/ HTTP/1.1\r\nAccept: */*\r\nHost: www.google.com\r\n\r\n">>
+  Request = binary_to_list(Data),
+  Req = parse_headers(Request),
+  io:format("request: ~p, ~p~n", [Req#request.method, Req#request.url]),
   ok.
   
 %% client <-> me loop
