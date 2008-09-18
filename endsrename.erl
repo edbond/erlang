@@ -52,7 +52,8 @@ output(Cmd) -> io:format("~s~n", [Cmd]).
 
 %% this is for parallel version
 getoutput(R) ->
-  leader ! {output, rename_rom(R)}.
+  leader ! {output, rename_rom(R)},
+  exit(normal).
 
 wait_loop(0) ->
   ok;
@@ -64,16 +65,20 @@ wait_loop(N) ->
       wait_loop(N-1)
   end.
 
-main(_) ->
+main_loop() ->
   Roms = filelib:wildcard("*.nds"),
 
   %% parallel version
   register(leader, self()),
   lists:foreach(fun(R) -> spawn(fun() -> getoutput(R) end) end, Roms),
-  wait_loop(length(Roms)),
+  wait_loop(length(Roms)).
 
   %% flat version
   %Cmds = lists:flatmap(fun(X) -> rename_rom(X) end, Roms),
   %% output
   %lists:map(fun(C) -> output(C) end, Cmds),
+
+main(_) ->
+  {Ms, _Value} = timer:tc(?MODULE, main_loop, []),
+  io:format("# finished in ~p ms~n", [Ms]),
   halt().
