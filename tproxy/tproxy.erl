@@ -74,15 +74,25 @@ code_change(OldVsn, _State, _Extra) ->
 
 -record(request,
   {
-    method, % port connection accepted on
-    url, % socket I'm listen on
-    headers % socket I talk to
+    method, % GET or POST or ...
+    url, % url
+    version, % HTTP/1.0 or HTTP/1.1
+    headers % array of headers
   }
 ).
 
 parse_headers(Request, R) ->
   io:format("request: ~p result: ~p~n", [Request, R]),
-  [Line, Rest] = lists:split(fun() -> "", Request
+  Lines = string:tokens(Request, "\r\n"),
+  io:format("Lines: ~p~n", [Lines]),
+  Headers = lists:nthtail(1, Lines),
+  FirstLine = hd(Lines),
+  io:format("First: ~p~nHeaders: ~p~n", [FirstLine, Headers]),
+
+  [Method, URL, Version] = string:tokens(FirstLine, " "),
+  io:format("Method, URL, Version = ~p, ~p, ~p~n", [Method, URL, Version]),
+
+  %[Line, Rest] = lists:split(fun() -> "" end, Request,
   R.
 
 parse_headers(Request) ->
