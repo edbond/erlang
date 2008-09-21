@@ -81,6 +81,10 @@ code_change(OldVsn, _State, _Extra) ->
   }
 ).
 
+get_response(Request) ->
+  {ok, {{Version, 200, ReasonPhrase}, Headers, Body}} = http:request(Request#request.url),
+  Body.
+
 parse_headers(Request, R) ->
   io:format("request: ~p result: ~p~n", [Request, R]),
   Lines = string:tokens(Request, "\r\n"),
@@ -92,8 +96,7 @@ parse_headers(Request, R) ->
   [Method, URL, Version] = string:tokens(FirstLine, " "),
   io:format("Method, URL, Version = ~p, ~p, ~p~n", [Method, URL, Version]),
 
-  %[Line, Rest] = lists:split(fun() -> "" end, Request,
-  R.
+  R#request{method = Method, url = URL, version = Version, headers = Headers}.
 
 parse_headers(Request) ->
   parse_headers(Request, #request{}).
@@ -103,8 +106,8 @@ parse_request(Data, _Pid) ->
   Request = binary_to_list(Data),
   Req = parse_headers(Request),
   io:format("request: ~p, ~p~n", [Req#request.method, Req#request.url]),
-  ok.
-  
+  Req.
+
 %% client <-> me loop
 loop(Socket) ->
   io:format("loop ~n",[]),
@@ -112,8 +115,9 @@ loop(Socket) ->
     {ok, Data} ->
       io:format("read data ~p~n", [Data]),
       % parse data
-      parse_request( Data, self() ),
-      gen_tcp:send(Socket, Data),
+      Request = parse_request( Data, self() ),
+      Response = get_response(Request),
+      gen_tcp:send(Socket, Response),
       loop(Socket);
     {error, Reason} ->
       io:format("socket closed ~p~n", [Reason]);
@@ -124,9 +128,8 @@ loop(Socket) ->
 main() ->
   {ok, Pid} = gen_server:start_link(?MODULE, [], []),
   io:format("started gen_server pid: ~p~n", [Pid]),
+  inets:start(),
   gen_server:cast(Pid, {accept}).
 
-  %inets:start(),
-  %{ok, {{Version, 200, ReasonPhrase}, Headers, Body}} = http:request("http://www.erlang.org"),
   %io:format("yo! ~p~n", [Body]),
   %inets:stop().
