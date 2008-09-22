@@ -2,12 +2,6 @@
 -author(edbond@gmail.com).
 -vsn(1.0).
 -export([main/0]).
--import(filelib, [is_dir/1, wildcard/1]).
--import(filename, [join/1]).
--import(lists, [filter/2]).
--import(timer, [sleep/1]).
--import(io, [format/2]).
--import(io_lib).
 
 collectOutput(Port, Output) ->
   receive
