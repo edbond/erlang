@@ -108,14 +108,15 @@ parse_request(Data, _Pid) ->
   io:format("request: ~p, ~p~n", [Req#request.method, Req#request.url]),
   Req.
 
-pair(Read, Write, Data) ->
-  if
-    Data /= void ->
-    gen_tcp:send(Write, Data)
-  end,
+pair(Read, Write, Data) when Data /= void ->
+  gen_tcp:send(Write, Data),
+  pair(Read, Write, void);
+
+pair(Read, Write, void) ->
   % main read/write loop
   case gen_tcp:recv(Read, 0) of
     {ok, B} ->
+      io:format("Got data from ~p: ~p. Send this to ~p", [Read, B, Write]),
       gen_tcp:send(Write, B),
       pair(Read, Write, void);
     {error, closed} ->
