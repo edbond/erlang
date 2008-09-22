@@ -43,7 +43,9 @@ handle_cast({accept}, State) ->
   case gen_tcp:accept(State#tp_state.listen, infinity) of
     {ok, Socket} -> 
       io:format("going into loop ~p~n", [Socket]),
-      gen_server:cast(self(), {loop, Socket});
+      Controller = spawn(fun() -> controller() end),
+      gen_tcp:controlling_process(Socket, Controller),
+      gen_server:cast(self(), {loop, Socket, Controller});
       %{noreply, State#tp_state{socket=Socket} };
     {error, timeout} ->
       io:format("restart accept~n"),
@@ -52,8 +54,8 @@ handle_cast({accept}, State) ->
   end,
   gen_server:cast(self(), {accept}),
   {noreply, State};
-handle_cast({loop, Socket}, State) ->
-  spawn(fun() -> loop(Socket) end),
+handle_cast({loop, Socket, Controller}, State) ->
+  spawn(fun() -> loop(Socket, Controller) end),
   {noreply, State};
 handle_cast(Request, State) ->
   io:format("handle_cast: ~p~n", [Request]),
@@ -108,6 +110,13 @@ parse_request(Data, _Pid) ->
   io:format("request: ~p, ~p~n", [Req#request.method, Req#request.url]),
   Req.
 
+controller() ->
+  receive
+    Message ->
+      io:format("got message: ~p~n", [Message])
+  end,
+  controller().
+
 pair(Read, Write, Data) when Data /= void ->
   gen_tcp:send(Write, Data),
   pair(Read, Write, void);
@@ -124,27 +133,38 @@ pair(Read, Write, void) ->
       ok
   end.
 
-make_pair(Request, Client, InitialData) ->
+make_pair(Request, Client, InitialData, Controller) ->
   Uri = uri:from_string(Request#request.url),
   Address = uri:host(Uri),
+  case uri:port(Uri) of
+    [] ->
+      Port = 80;
+    Other ->
+      Port = Other
+  end,
 
-  io:format("connecting to ~p~n", [Address]),
+  io:format("connecting to ~p:~p~n", [Address,Port]),
 
-  {ok, Server} = gen_tcp:connect(Address, 80, []),
+  {ok, Server} = gen_tcp:connect(Address, Port, []),
+  io:format("a~n",[]),
+  ok = gen_tcp:controlling_process(Server, Controller),
+  io:format("b~n",[]),
+  gen_tcp:send(Server, InitialData).
+
   % spawn process that will recv from Client and send to Server
-  spawn(fun() -> pair(Client, Server, InitialData) end),
+  %spawn(fun() -> pair(Client, Server, InitialData) end),
   % spawn process that will recv from Server and send to Client
-  spawn(fun() -> pair(Server, Client, void) end).
+  %spawn(fun() -> pair(Server, Client, void) end).
 
 %% client <-> me loop
-loop(Socket) ->
+loop(Socket, Controller) ->
   io:format("loop ~n",[]),
   case gen_tcp:recv(Socket,0) of
     {ok, Data} ->
       io:format("read data ~p~n", [Data]),
       % parse data
       Request = parse_request( Data, self() ),
-      make_pair(Request, Socket, Data);
+      make_pair(Request, Socket, Data, Controller);
     {error, Reason} ->
       io:format("socket closed ~p~n", [Reason]);
     Other ->
