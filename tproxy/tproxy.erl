@@ -81,9 +81,9 @@ code_change(OldVsn, _State, _Extra) ->
   }
 ).
 
-get_response(Request) ->
-  {ok, {{Version, 200, ReasonPhrase}, Headers, Body}} = http:request(Request#request.url),
-  Body.
+%get_response(Request) ->
+  %{ok, {{Version, 200, ReasonPhrase}, Headers, Body}} = http:request(Request#request.url),
+  %Body.
 
 parse_headers(Request, R) ->
   io:format("request: ~p result: ~p~n", [Request, R]),
@@ -108,6 +108,34 @@ parse_request(Data, _Pid) ->
   io:format("request: ~p, ~p~n", [Req#request.method, Req#request.url]),
   Req.
 
+pair(Read, Write, Data) when Data /= void ->
+  gen_tcp:send(Write, Data),
+  pair(Read, Write, void);
+
+pair(Read, Write, void) ->
+  % main read/write loop
+  case gen_tcp:recv(Read, 0) of
+    {ok, B} ->
+      io:format("Got data from ~p: ~p. Send this to ~p", [Read, B, Write]),
+      gen_tcp:send(Write, B),
+      pair(Read, Write, void);
+    {error, closed} ->
+      io:format("closed ~p <=> ~p~n", [Read, Write]),
+      ok
+  end.
+
+make_pair(Request, Client, InitialData) ->
+  Uri = uri:from_string(Request#request.url),
+  Address = uri:host(Uri),
+
+  io:format("connecting to ~p~n", [Address]),
+
+  {ok, Server} = gen_tcp:connect(Address, 80, []),
+  % spawn process that will recv from Client and send to Server
+  spawn(fun() -> pair(Client, Server, InitialData) end),
+  % spawn process that will recv from Server and send to Client
+  spawn(fun() -> pair(Server, Client, void) end).
+
 %% client <-> me loop
 loop(Socket) ->
   io:format("loop ~n",[]),
@@ -116,9 +144,7 @@ loop(Socket) ->
       io:format("read data ~p~n", [Data]),
       % parse data
       Request = parse_request( Data, self() ),
-      Response = get_response(Request),
-      gen_tcp:send(Socket, Response),
-      loop(Socket);
+      make_pair(Request, Socket, Data);
     {error, Reason} ->
       io:format("socket closed ~p~n", [Reason]);
     Other ->
