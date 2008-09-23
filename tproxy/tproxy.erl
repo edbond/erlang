@@ -39,13 +39,17 @@ handle_call(Request, From, State) ->
   io:format("handle_call: ~p~n", [Request]),
   {reply, From, State}.
 
+handle_cast({assignSocket, Socket, Controller}, State) ->
+  io:format("assign ~p, ~p ~n",[Socket, Controller]),
+  gen_tcp:controlling_process(Socket, Controller),
+  io:format("assigned~n",[]),
+  {noreply, State};
 handle_cast({accept}, State) ->
   case gen_tcp:accept(State#tp_state.listen, infinity) of
     {ok, Socket} -> 
       io:format("going into loop ~p~n", [Socket]),
-      Controller = spawn(fun() -> controller() end),
-      gen_tcp:controlling_process(Socket, Controller),
-      gen_server:cast(self(), {loop, Socket, Controller});
+      ToClient = spawn(fun() -> send_to(Socket) end),
+      gen_server:cast(self(), {loop, Socket, ToClient});
       %{noreply, State#tp_state{socket=Socket} };
     {error, timeout} ->
       io:format("restart accept~n"),
@@ -54,8 +58,8 @@ handle_cast({accept}, State) ->
   end,
   gen_server:cast(self(), {accept}),
   {noreply, State};
-handle_cast({loop, Socket, Controller}, State) ->
-  spawn(fun() -> loop(Socket, Controller) end),
+handle_cast({loop, Socket, ToClient}, State) ->
+  spawn(fun() -> loop(Socket, ToClient) end),
   {noreply, State};
 handle_cast(Request, State) ->
   io:format("handle_cast: ~p~n", [Request]),
@@ -110,30 +114,34 @@ parse_request(Data, _Pid) ->
   io:format("request: ~p, ~p~n", [Req#request.method, Req#request.url]),
   Req.
 
-controller() ->
+send_to(Socket) ->
   receive
-    Message ->
-      io:format("got message: ~p~n", [Message])
+    {tcp, From, Packets} ->
+      io:format("got message: ~p ~p~n", [From, Packets]),
+      gen_tcp:send(Socket, Packets);
+    {tcp_closed, Port} ->
+      io:format("closed message ~p~n", [Port]),
+      gen_tcp:close(Port)
   end,
-  controller().
+  send_to(Socket).
 
-pair(Read, Write, Data) when Data /= void ->
-  gen_tcp:send(Write, Data),
-  pair(Read, Write, void);
+%pair(Read, Write, Data) when Data /= void ->
+  %gen_tcp:send(Write, Data),
+  %pair(Read, Write, void);
 
-pair(Read, Write, void) ->
+%pair(Read, Write, void) ->
   % main read/write loop
-  case gen_tcp:recv(Read, 0) of
-    {ok, B} ->
-      io:format("Got data from ~p: ~p. Send this to ~p", [Read, B, Write]),
-      gen_tcp:send(Write, B),
-      pair(Read, Write, void);
-    {error, closed} ->
-      io:format("closed ~p <=> ~p~n", [Read, Write]),
-      ok
-  end.
+  %case gen_tcp:recv(Read, 0) of
+    %{ok, B} ->
+      %io:format("Got data from ~p: ~p. Send this to ~p", [Read, B, Write]),
+      %gen_tcp:send(Write, B),
+      %pair(Read, Write, void);
+    %{error, closed} ->
+      %io:format("closed ~p <=> ~p~n", [Read, Write]),
+      %ok
+  %end.
 
-make_pair(Request, Client, InitialData, Controller) ->
+make_pair(Request, Client, InitialData, ToClient) ->
   Uri = uri:from_string(Request#request.url),
   Address = uri:host(Uri),
   case uri:port(Uri) of
@@ -147,8 +155,13 @@ make_pair(Request, Client, InitialData, Controller) ->
 
   {ok, Server} = gen_tcp:connect(Address, Port, []),
   io:format("a~n",[]),
-  ok = gen_tcp:controlling_process(Server, Controller),
+
+  ToServer = spawn(fun() -> send_to(Server) end),
+  ok = gen_tcp:controlling_process(Server, ToClient),
   io:format("b~n",[]),
+  gen_server:cast(server, {assignSocket, Client, ToServer}),
+  %ok = gen_tcp:controlling_process(Client, ToServer),
+
   gen_tcp:send(Server, InitialData).
 
   % spawn process that will recv from Client and send to Server
@@ -157,14 +170,14 @@ make_pair(Request, Client, InitialData, Controller) ->
   %spawn(fun() -> pair(Server, Client, void) end).
 
 %% client <-> me loop
-loop(Socket, Controller) ->
+loop(Socket, ToClient) ->
   io:format("loop ~n",[]),
   case gen_tcp:recv(Socket,0) of
     {ok, Data} ->
       io:format("read data ~p~n", [Data]),
       % parse data
       Request = parse_request( Data, self() ),
-      make_pair(Request, Socket, Data, Controller);
+      make_pair(Request, Socket, Data, ToClient);
     {error, Reason} ->
       io:format("socket closed ~p~n", [Reason]);
     Other ->
@@ -175,6 +188,7 @@ main() ->
   {ok, Pid} = gen_server:start_link(?MODULE, [], []),
   io:format("started gen_server pid: ~p~n", [Pid]),
   inets:start(),
+  register(server, Pid),
   gen_server:cast(Pid, {accept}).
 
   %io:format("yo! ~p~n", [Body]),
