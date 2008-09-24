@@ -120,8 +120,9 @@ send_to(Socket) ->
       io:format("got message: ~p ~p~n", [From, Packets]),
       gen_tcp:send(Socket, Packets);
     {tcp_closed, Port} ->
-      io:format("closed message ~p~n", [Port]),
-      gen_tcp:close(Port)
+      io:format("closed message ~p ~p ~n", [Port, Socket]),
+      gen_tcp:close(Port),
+      gen_tcp:close(Socket)
   end,
   send_to(Socket).
 
