@@ -47,10 +47,8 @@ handle_cast({assignSocket, Socket, Controller}, State) ->
 handle_cast({accept}, State) ->
   case gen_tcp:accept(State#tp_state.listen, infinity) of
     {ok, Socket} -> 
-      io:format("going into loop ~p~n", [Socket]),
-      ToClient = spawn(fun() -> send_to(Socket) end),
-      gen_server:cast(self(), {loop, Socket, ToClient});
-      %{noreply, State#tp_state{socket=Socket} };
+      io:format("going into loop: Client -> ~p~n", [Socket]),
+      gen_server:cast(self(), {loop, Socket});
     {error, timeout} ->
       io:format("restart accept~n"),
       %% restart
@@ -58,8 +56,8 @@ handle_cast({accept}, State) ->
   end,
   gen_server:cast(self(), {accept}),
   {noreply, State};
-handle_cast({loop, Socket, ToClient}, State) ->
-  spawn(fun() -> loop(Socket, ToClient) end),
+handle_cast({loop, Socket}, State) ->
+  spawn(fun() -> loop(Socket) end),
   {noreply, State};
 handle_cast(Request, State) ->
   io:format("handle_cast: ~p~n", [Request]),
@@ -118,31 +116,30 @@ send_to(Socket) ->
   receive
     {tcp, From, Packets} ->
       io:format("got message: ~p ~p~n", [From, Packets]),
-      gen_tcp:send(Socket, Packets);
+      ok = gen_tcp:send(Socket, Packets),
+      send_to(Socket);
     {tcp_closed, Port} ->
       io:format("closed message ~p ~p ~n", [Port, Socket]),
-      gen_tcp:close(Port),
-      gen_tcp:close(Socket)
-  end,
-  send_to(Socket).
+      ok = gen_tcp:close(Port),
+      ok = gen_tcp:close(Socket)
+  end.
 
-%pair(Read, Write, Data) when Data /= void ->
-  %gen_tcp:send(Write, Data),
-  %pair(Read, Write, void);
+conversation(Server, Client) ->
+  io:format("conversation ~p ~p~n", [Server, Client]),
+  case gen_tcp:recv(Server, 0) of
+    {ok, Data} ->
+      io:format("Data ~p~n", [Data]),
+      gen_tcp:send(Client, Data),
+      conversation(Server, Client);
+    {error, Reason} ->
+      io:format("conversation error: ~p~n", [Reason]),
+      gen_tcp:close(Server),
+      gen_tcp:close(Client);
+    Other ->
+      io:format("unknown message! ~p~n", [Other])
+  end.
 
-%pair(Read, Write, void) ->
-  % main read/write loop
-  %case gen_tcp:recv(Read, 0) of
-    %{ok, B} ->
-      %io:format("Got data from ~p: ~p. Send this to ~p", [Read, B, Write]),
-      %gen_tcp:send(Write, B),
-      %pair(Read, Write, void);
-    %{error, closed} ->
-      %io:format("closed ~p <=> ~p~n", [Read, Write]),
-      %ok
-  %end.
-
-make_pair(Request, Client, InitialData, ToClient) ->
+make_pair(Request, Client, InitialData) ->
   Uri = uri:from_string(Request#request.url),
   Address = uri:host(Uri),
   case uri:port(Uri) of
@@ -155,30 +152,22 @@ make_pair(Request, Client, InitialData, ToClient) ->
   io:format("connecting to ~p:~p~n", [Address,Port]),
 
   {ok, Server} = gen_tcp:connect(Address, Port, []),
-  io:format("a~n",[]),
+  io:format("socket to server ~p ~n",[Server]),
 
-  ToServer = spawn(fun() -> send_to(Server) end),
-  ok = gen_tcp:controlling_process(Server, ToClient),
+  gen_tcp:send(Server, InitialData),
   io:format("b~n",[]),
-  gen_server:cast(server, {assignSocket, Client, ToServer}),
-  %ok = gen_tcp:controlling_process(Client, ToServer),
+  conversation(Server, Client).
 
-  gen_tcp:send(Server, InitialData).
-
-  % spawn process that will recv from Client and send to Server
-  %spawn(fun() -> pair(Client, Server, InitialData) end),
-  % spawn process that will recv from Server and send to Client
-  %spawn(fun() -> pair(Server, Client, void) end).
 
 %% client <-> me loop
-loop(Socket, ToClient) ->
+loop(Socket) ->
   io:format("loop ~n",[]),
   case gen_tcp:recv(Socket,0) of
     {ok, Data} ->
       io:format("read data ~p~n", [Data]),
       % parse data
       Request = parse_request( Data, self() ),
-      make_pair(Request, Socket, Data, ToClient);
+      make_pair(Request, Socket, Data);
     {error, Reason} ->
       io:format("socket closed ~p~n", [Reason]);
     Other ->
