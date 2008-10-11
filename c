@@ -1,2 +1,2 @@
 #!/bin/sh
-erl -s endsrename main . -noshell
+erl -smp disable +K true -run endsrename main . -noshell
