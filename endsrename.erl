@@ -79,6 +79,6 @@ main_loop() ->
   %lists:map(fun(C) -> output(C) end, Cmds),
 
 main(_) ->
-  {Ms, _Value} = timer:tc(?MODULE, main_loop, []),
+  {Ms, _Value} = timer:tc(?MODULE, fun() -> main_loop() end, []),
   io:format("# finished in ~p ms~n", [Ms]),
   halt().
