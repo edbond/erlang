@@ -3,6 +3,7 @@
 -vsn(1.0).
 
 -define(PORT, 3456).
+-define(TCP_OPTS, [binary, {packet, raw}, {nodelay, true}, {reuseaddr, true}, {active, once}]).
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -100,7 +101,7 @@ main() ->
   inets:start(),
   % listen to socket
 
-  {ok, Socket} = gen_tcp:listen(?PORT, [list, {packet, 0}, {active, false}]),
+  {ok, Socket} = gen_tcp:listen(?PORT, ?TCP_OPTS),
   io:format("listen ~p~n", [Socket]),
 
   loop(Socket).
