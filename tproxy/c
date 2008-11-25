@@ -1,4 +1,4 @@
 #!/bin/sh
 
-#erlc -I /usr/local/lib/erlang/lib/eunit/include *.erl && erl -smp -s tproxy main -noshell
-erlc -I /usr/local/lib/erlang/lib/eunit/include *.erl && erl -smp disable +K true -run pp2 main -noshell
+erlc -I /usr/local/lib/erlang/lib/eunit/include *.erl && erl -smp -s tproxy main -noshell
+#erlc -I /usr/local/lib/erlang/lib/eunit/include *.erl && erl -smp disable +K true -run pp2 main -noshell

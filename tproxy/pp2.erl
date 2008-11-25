@@ -3,7 +3,9 @@
 -vsn(1.0).
 
 -define(PORT, 3456).
--define(TCP_OPTS, [binary, {packet, raw}, {nodelay, true}, {reuseaddr, true}, {active, once}]).
+-define(TCP_OPTS, [list, {packet, raw}, {nodelay, true}, {reuseaddr, true}, {active, false}]).
+
+-define(DEBUG, true).
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -34,42 +36,51 @@ handle_info({tcp, From, Data}, State) ->
   {noreply, State};
 
 handle_info({tcp_closed, _From}, State) ->
+  log("tcp closed, closing all connections", []),
   ok=gen_tcp:close(State#tp_state.client_socket),
   ok=gen_tcp:close(State#tp_state.server_socket),
   {noreply, State}; % or stop?
 
 handle_info({tcp_error, _From, Reason}, State) ->
-  io:format("tcp error: ~p~n", [Reason]),
+  log("tcp error: ~p~n", [Reason]),
   ok=gen_tcp:close(State#tp_state.client_socket),
   ok=gen_tcp:close(State#tp_state.server_socket),
   {noreply, State}; % or stop?
 
 handle_info(Info, _State) ->
-  io:format("info! ~p~n", [Info]),
+  log("info! ~p~n", [Info]),
   ok.
 
 read_until(Stop, Socket, Acc) ->
-  %io:format("read_until ~p ~p ~p~n", [Stop, Socket, Acc]),
+  log("read_until ~p ~p ~p~n", [Stop, Socket, Acc]),
   {ok, Data} = gen_tcp:recv(Socket, 0),
-  %io:format("read ~p~n", [Data]),
+  log("read ~p~n", [Data]),
   NewAcc = [Acc | Data],
   Pos = string:str(Data, Stop),
   if
     Pos == 0 ->
-      %io:format("read more...~n", []),
+      %log("read more...~n", []),
       read_until(Stop, Socket, NewAcc);
     true ->
-      %io:format("all~n", []),
+      %log("all~n", []),
       ok
   end,
-  %io:format("returning ~p~n", [NewAcc]),
+  log("returning ~p~n", [NewAcc]),
   lists:flatten(NewAcc).
+
+log(A, B) ->
+  case ?DEBUG of
+    true ->
+      io:format(A, B);
+    _Other ->
+      ok
+  end.
 
 init(Args) ->
   [ClientSocket] = Args,
-  %io:format("init: ~p~n", [ClientSocket]),
+  log("init: ~p~n", [ClientSocket]),
   Request = read_until("\r\n\r\n", ClientSocket, []),
-  io:format("got request: ~p~n", [Request]),
+  log("got request: ~p~n", [Request]),
 
   % parse request
   Uri = uri:from_string(Request),
@@ -82,26 +93,26 @@ init(Args) ->
   end,
   
   % connect to server
-  %io:format("connecting to ~p:~p~n", [Address,Port]),
+  log("connecting to ~p:~p~n", [Address,Port]),
 
   {ok, ServerSocket} = gen_tcp:connect(Address, Port, []),
-  %io:format("socket to server ~p ~n",[ServerSocket]),
+  log("socket to server ~p ~n",[ServerSocket]),
 
   gen_tcp:send(ServerSocket, Request),
   {ok, #tp_state{server_socket=ServerSocket, client_socket=ClientSocket}}.
 
 loop(ListenSocket) ->
   {ok, ClientSocket} = gen_tcp:accept(ListenSocket, infinity),
-  %io:format("connection ~p~n", [ClientSocket]),
+  log("connection ~p~n", [ClientSocket]),
   _Proxy = gen_server:start_link(?MODULE, [ClientSocket], []),
 
   loop(ListenSocket).
 
 main() ->
   inets:start(),
-  % listen to socket
 
+  % listen to socket
   {ok, Socket} = gen_tcp:listen(?PORT, ?TCP_OPTS),
-  io:format("listen ~p~n", [Socket]),
+  log("listen ~p~n", [Socket]),
 
   loop(Socket).
