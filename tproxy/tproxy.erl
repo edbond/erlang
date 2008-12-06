@@ -30,7 +30,7 @@ read_until(Stop, Socket, Acc) ->
   log("read_until ~p ~p ~p~n", [Stop, Socket, Acc]),
   {ok, Data} = gen_tcp:recv(Socket, 0),
   log("read ~p~n", [Data]),
-  NewAcc = [Acc | Data],
+  NewAcc = Acc++[Data],
   Pos = string:str(Data, Stop),
   if
     Pos == 0 ->

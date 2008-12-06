@@ -1,11 +1,10 @@
-%#!/usr/bin/env escript
 -module(endsrename).
 -author('Eduard Bondarenko <edbond@gmail.com>').
 
--mode(compile).
--compile( [ native, { hipe, o3 } ] ).
--compile( [ inline, { inline_size, 100 } ] ).
--export([main/1]).
+%-mode(compile).
+%-compile( [ native, { hipe, o3 } ] ).
+%-compile( [ inline, { inline_size, 100 } ] ).
+-export([start/0, getoutput/1]).
 
 cleanup_title(C,A) when (C>64) and (C<123) -> A++[C];
 cleanup_title(C,A) when (C>47) and (C<58) -> A++[C];
@@ -24,12 +23,12 @@ rename_save(Romname, CleanRomname) ->
   %% find savename that matches original romname
   Savename = lists:filter(fun(S) -> Romname == S end, SaveFilenames),
   case length(Savename) of
-    0 -> Cmd = void;
-    _ -> Cmd = "mv '../SAVE/"++hd(Savename)++".sav' '../SAVE/"++CleanRomname++".sav'"
-  end,
-  Cmd.
+    0 -> [];
+    _ -> "mv '../SAVE/"++hd(Savename)++".sav' '../SAVE/"++CleanRomname++".sav'"
+  end.
 
 rename_rom(Filename) ->
+  %io:format("rom: ~s, pid:~p~n", [Filename, self()]),
   Romname = filename:rootname(Filename),
   {ok, FH}=file:open(Filename, [read,binary]),
 
@@ -40,20 +39,16 @@ rename_rom(Filename) ->
 
   if Romname /= CleanRomname ->
     Cmd = "mv '"++Romname++".nds' '"++CleanRomname++".nds'",
-    SaveCmd = rename_save(Romname,CleanRomname);
+    SaveCmd = rename_save(Romname,CleanRomname),
+    lists:filter(fun(C) -> C /= [] end, [Cmd, SaveCmd]);
   true ->
-    Cmd = void,
-    SaveCmd = void
-  end,
-  [Cmd, SaveCmd].
-
-output(void) -> true;
-output(Cmd) -> io:format("~s~n", [Cmd]).
+    []
+  end.
 
 %% this is for parallel version
 getoutput(R) ->
   leader ! {output, rename_rom(R)},
-  exit(normal).
+  ok.
 
 wait_loop(0) ->
   ok;
@@ -61,22 +56,19 @@ wait_loop(N) ->
   receive
     {output, Output} ->
       %% output
-      lists:map(fun(C) -> output(C) end, Output),
+      [io:format("~s~n", [Cmd]) || Cmd <- Output],
       wait_loop(N-1)
   end.
 
 main_loop() ->
-  %io:format("# main_loop~n"),
-  Roms = filelib:wildcard("*.nds"),
+  Roms = filelib:fold_files(".", ".*\.[nN][dD][sS]$", false, fun(X, Acc) -> Acc++[X] end, []),
 
-  %io:format("# roms ~p~n", [Roms]),
   %% parallel version
   register(leader, self()),
-  lists:foreach(fun(R) -> spawn(fun() -> getoutput(R) end) end, Roms),
-  wait_loop(length(Roms)).
+  [spawn(?MODULE, getoutput, [R]) || R <- Roms],
+  wait_loop(length(Roms)),
+  unregister(leader).
 
-main(_) ->
+start() ->
   main_loop(),
-  %{Ms, _Value} = timer:tc(?MODULE, fun() -> main_loop() end, []),
-  %io:format("# finished in ~p ms~n", [Ms]),
-  halt().
+  ok.

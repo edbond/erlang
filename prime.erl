@@ -1,7 +1,7 @@
 -module(prime).
 -author("edbond@gmail.com").
 
--export([prime/2]).
+-export([init/1]).
 
 prime(N, Nfac1) ->
         Nfac = Nfac1 * N,
@@ -9,6 +9,9 @@ prime(N, Nfac1) ->
         case Prime of
                 2 -> omit;
                 _ ->
-                        io:format("~p~n", [Prime])
+                        io:format("~p\r", [Prime])
         end,
         prime(N+1, Nfac).
+
+init(Args) ->
+  prime(1,1).
