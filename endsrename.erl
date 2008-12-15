@@ -56,7 +56,7 @@ wait_loop(N) ->
   receive
     {output, Output} ->
       %% output
-      [io:format("~s~n", [Cmd]) || Cmd <- Output],
+      [io:fwrite("~s~n", [Cmd]) || Cmd <- Output],
       wait_loop(N-1)
   end.
 
@@ -71,4 +71,8 @@ main_loop() ->
 
 start() ->
   main_loop(),
+  {Time, _Result} = timer:tc(?MODULE, main_loop, []),
+  io:format("# completed in ~pms~n", [Time]),
+  %main_loop(),
+  init:stop(),
   ok.
