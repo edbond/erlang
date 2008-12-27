@@ -22,16 +22,38 @@ sax_event(ParserFSM, Event, A) ->
   end,
   A.
 
-parse_fb2(Filename, Acc) ->
+% convert xml from Encoding to UTF-8
+decode(Encoding, Xml) ->
+  %% substitute <?xml ?> 
+  Xml.
+
+parse_fb2(Filename, Acc, Encoding) ->
+  io:format("parse ~p~n", [Encoding]),
   {ok, Xml}=file:read_file(Filename),
+  if
+    Encoding == "utf-8" ->
+      Utf8Xml = Xml;
+    true ->
+      Utf8Xml = decode(Encoding, Xml)
+  end,
+
   {ok, ParserFSM}=gen_fsm:start_link(fb2_fsm, [], []),
-  try erlsom:parse_sax(Xml, [], fun(F,A) -> sax_event(ParserFSM, F,A) end)
+  try erlsom:parse_sax(Utf8Xml, [], fun(F,A) -> sax_event(ParserFSM, F,A) end)
   catch {error, Error} ->
-    io:format("error: ~p~n", [Error])
+    %% Encoding windows-1251 not supported
+    case re:run(Error, "Encoding (.*) not supported") of
+      nomatch ->
+        io:format("error: ~p~n", [Error]);
+      {match, Captured} ->
+        %% transcode
+        {Start, Length} = lists:last(Captured),
+        NewEncoding = string:substr(Error, Start+1, Length),
+        parse_fb2(Filename, Acc, NewEncoding)
+    end
   end,
   [Filename]++Acc.
 
 start() ->
-  Results=filelib:fold_files(".", ".*\.fb2$", false, fun(F,A) -> parse_fb2(F, A) end, []),
+  Results=filelib:fold_files(".", ".*\.fb2$", false, fun(F,A) -> parse_fb2(F, A, "utf-8") end, []),
   io:format("results ~p~n", [Results]),
   ok.
