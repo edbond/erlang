@@ -43,7 +43,7 @@ parse_authors(Xml, Matches, Encoding) ->
 parse_fb2(Filename, Acc) ->
   %io:format("parse ~p~n", [Filename]),
   {ok, XmlFile}=file:open(Filename, [read]),
-  {ok, Xml}=file:read(XmlFile, 2048),
+  {ok, Xml}=file:read(XmlFile, 4096),
   ok=file:close(XmlFile),
 
   %% determine encoding
@@ -77,7 +77,23 @@ dump_info(Book) ->
   ok.
 
 start() ->
-  Results=filelib:fold_files(".", ".*\.fb2$", true, fun(F,A) -> parse_fb2(F, A) end, []),
-  lists:map(fun dump_info/1, Results),
-  %io:format("results ~p~n", [Results]),
+  process_flag(trap_exit,true),
+
+  io:format("parsing books..."),
+  {Time,Results}=timer:tc(filelib, fold_files, [".", ".*\.fb2$", true, fun(F,A) -> parse_fb2(F, A) end, []]),
+  %lists:map(fun dump_info/1, Results),
+  io:format("ok, ~p books parsed in ~p sec~n", [length(Results), Time/1000000]),
+
+  io:format("start db..."),
+  fb2_db:start(),
+  ok=fb2_db:cleanup(),
+  io:format("ok~n"),
+
+  io:format("populate books info..."),
+  ok=fb2_db:insert(Results),
+  io:format("ok~n"),
+
+  io:format("starting web server..."),
+  spawn_link(fb2_web, start, []),
+  io:format("ok~n"),
   ok.
