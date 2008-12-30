@@ -9,8 +9,8 @@ start() ->
 
 cleanup() ->
   try
+    mnesia:clear_table(fb2_info),
     mnesia:table_info(fb2_info, type)
-    %{atomic, ok}=mnesia:clear_table(fb2_info)
   catch
     exit: _ ->
       io:format("create table~n"),

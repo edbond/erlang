@@ -1,4 +1,7 @@
 all:
+	erlc +debug_info utf8.erl
+	erlc +debug_info win1251.erl
+	erlc +debug_info win1252.erl
 	erlc +debug_info fb2.erl
 	erlc +debug_info fb2_db.erl
 	erlc +debug_info fb2_web.erl

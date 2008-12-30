@@ -28,7 +28,7 @@ dispatch_requests(Request) ->
 handle('GET', "/", _Post) ->
   Response = "<ul>" ++ lists:map(
     fun(Book) ->
-        io_lib:format("<li>~s</li>", [Book#fb2_info.title])
+        io_lib:format("<li>~s (~s)</li>", [Book#fb2_info.title, Book#fb2_info.annotation])
     end,
     fb2_db:get_all()
   ) ++ "</ul>",

@@ -5,10 +5,12 @@
 
 % convert xml from Encoding to UTF-8
 decode(Encoding, Xml) ->
-  case Encoding of
+  case string:to_lower(Encoding) of
     "windows-1251" ->
       %io:format("decode: ~s~n", [Encoding]),
       win1251:decode(Xml);
+    "windows-1252" ->
+      win1252:decode(Xml);
     "utf-8" ->
       Xml;
     "UTF-8" ->
