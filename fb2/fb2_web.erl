@@ -1,7 +1,7 @@
 -module(fb2_web).
 -compile(export_all).
 
--record(fb2_info, {authors=[], title="", annotation="", encoding="", filename=""}).
+-include("fb2_info.hrl").
 
 start() ->
   application:start(mochiweb),

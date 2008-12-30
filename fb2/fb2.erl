@@ -1,7 +1,11 @@
 -module(fb2).
 -compile(export_all).
 
--record(fb2_info, {authors=[], title="", annotation="", encoding="", filename=""}).
+%-mode(compile).
+%-compile( [ native, { hipe, o3 } ] ).
+%-compile( [ inline, { inline_size, 100 } ] ).
+
+-include("fb2_info.hrl").
 
 % convert xml from Encoding to UTF-8
 decode(Encoding, Xml) ->
@@ -13,6 +17,10 @@ decode(Encoding, Xml) ->
       win1252:decode(Xml);
     "utf-8" ->
       Xml;
+    "iso-8859-1" ->
+      iso88591:decode(Xml);
+    "koi8-r" ->
+      koi8r:decode(Xml);
     "UTF-8" ->
       Xml
   end.
@@ -42,10 +50,17 @@ parse_authors(Xml, Matches, Encoding) ->
   %io:format("authors: ~p~n", [Authors]),
   {ok, Authors}.
 
+read_file(File, Size) ->
+  Result = file:read(File, Size),
+  case Result of
+    {ok, Xml} -> Xml;
+    _ -> ""
+  end.
+
 parse_fb2(Filename, Acc) ->
   %io:format("parse ~p~n", [Filename]),
   {ok, XmlFile}=file:open(Filename, [read]),
-  {ok, Xml}=file:read(XmlFile, 4096),
+  Xml=read_file(XmlFile, 4096),
   ok=file:close(XmlFile),
 
   %% determine encoding

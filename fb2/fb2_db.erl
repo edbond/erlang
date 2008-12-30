@@ -1,7 +1,7 @@
 -module(fb2_db).
 -compile(export_all).
 
--record(fb2_info, {authors=[], title="", annotation="", encoding="", filename=""}).
+-include("fb2_info.hrl").
 
 start() ->
   mnesia:create_schema([node()]),
@@ -9,7 +9,7 @@ start() ->
 
 cleanup() ->
   try
-    mnesia:clear_table(fb2_info),
+    mnesia:del_table_copy(fb2_info, node()),
     mnesia:table_info(fb2_info, type)
   catch
     exit: _ ->
